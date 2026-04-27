@@ -90,6 +90,7 @@ frappe.views.ListView = class ListView extends frappe.views.BaseList {
 		super.setup_defaults();
 
 		this.view = "List";
+		this.last_route_query = window.location.search || "";
 		// initialize with saved order by
 		this.sort_by = this.view_user_settings.sort_by || this.sort_by || "creation";
 		this.sort_order = this.view_user_settings.sort_order || this.sort_order || "desc";
@@ -573,16 +574,28 @@ frappe.views.ListView = class ListView extends frappe.views.BaseList {
 	}
 
 	before_refresh() {
+		const current_route_query = window.location.search || "";
+		const had_route_query = Boolean(this.last_route_query);
+
 		if (frappe.route_options && this.filter_area) {
 			this.filters = this.parse_filters_from_route_options();
 			frappe.route_options = null;
+			const should_clear_stale_route_filters =
+				!current_route_query && had_route_query && this.filters.length === 0;
+			this.last_route_query = current_route_query;
 
 			if (this.filters.length > 0) {
 				return this.filter_area
 					.clear(false)
 					.then(() => this.filter_area.set(this.filters));
 			}
+
+			if (should_clear_stale_route_filters) {
+				return this.filter_area.clear(false);
+			}
 		}
+
+		this.last_route_query = current_route_query;
 
 		return Promise.resolve();
 	}
@@ -1914,6 +1927,7 @@ frappe.views.ListView = class ListView extends frappe.views.BaseList {
 			// only update URL if the route still matches current page.
 			// do not update if current list is a "saved report".
 			window.history.replaceState(null, null, this.get_url_with_filters());
+			this.last_route_query = window.location.search || "";
 		}
 	}
 

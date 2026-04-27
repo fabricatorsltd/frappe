@@ -62,6 +62,8 @@ $("body").on("click", "a", function (e) {
 			for (const [key, value] of params) {
 				frappe.route_options[key] = value;
 			}
+		} else {
+			frappe.route_options = {};
 		}
 		if (target_element.hash) {
 			frappe.route_hash = target_element.hash;
@@ -368,7 +370,9 @@ frappe.router = {
 					const route_options = frappe.route_options || {};
 					const query_params = Object.entries(route_options)
 						.map(
-							([key, value]) => `${key}=` + encodeURIComponent(JSON.stringify(value))
+							([key, value]) =>
+								`${key}=` +
+								encodeURIComponent(frappe.utils.get_route_option_value(value))
 						)
 						.join("&");
 					this.push_state(sub_path, query_params ? `?${query_params}` : "");
@@ -495,7 +499,7 @@ frappe.router = {
 		if (window.location.pathname !== path || window.location.search !== query_params) {
 			// push/replace state so the browser looks fine
 			const method = frappe.route_flags.replace_route ? "replaceState" : "pushState";
-			history[method](null, null, path);
+			history[method](null, null, `${path}${query_params}`);
 
 			// now process the route
 			this.route();
@@ -531,10 +535,7 @@ frappe.router = {
 	set_route_options_from_url() {
 		// set query parameters as frappe.route_options
 		let query_string = window.location.search;
-
-		if (!frappe.route_options) {
-			frappe.route_options = {};
-		}
+		frappe.route_options = {};
 
 		if (localStorage.getItem("route_options")) {
 			frappe.route_options = JSON.parse(localStorage.getItem("route_options"));
