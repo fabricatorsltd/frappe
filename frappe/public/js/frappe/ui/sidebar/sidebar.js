@@ -418,27 +418,79 @@ frappe.ui.Sidebar = class Sidebar {
 		}
 	}
 
+	get_normalized_sidebar_path(path) {
+		return decodeURIComponent(path || "")
+			.split("#")[0]
+			.replace(/\/$/, "");
+	}
+
+	do_sidebar_query_params_match(expected_params, actual_params) {
+		for (const key of [...new Set(expected_params.keys())]) {
+			const expected_values = expected_params.getAll(key);
+			const actual_values = actual_params.getAll(key);
+
+			if (expected_values.length !== actual_values.length) {
+				return false;
+			}
+
+			if (expected_values.some((value, index) => value !== actual_values[index])) {
+				return false;
+			}
+		}
+
+		return true;
+	}
+
+	get_sidebar_item_match_score(href, current_url = window.location.href) {
+		if (!href) {
+			return -1;
+		}
+
+		const current = new URL(current_url, window.location.origin);
+		const target = new URL(href, current.origin);
+		const current_path = this.get_normalized_sidebar_path(current.pathname);
+		const target_path = this.get_normalized_sidebar_path(target.pathname);
+		const is_exact_path = current_path === target_path;
+		const is_prefix_path = current_path.startsWith(`${target_path}/`);
+
+		if (!is_exact_path && !is_prefix_path) {
+			return -1;
+		}
+
+		const target_params = new URLSearchParams(target.search);
+		const current_params = new URLSearchParams(current.search);
+
+		if (!this.do_sidebar_query_params_match(target_params, current_params)) {
+			return -1;
+		}
+
+		return (
+			(is_exact_path ? 1000 : 500) +
+			[...new Set(target_params.keys())].length * 50 +
+			target_path.length
+		);
+	}
+
 	is_route_in_sidebar() {
-		let match = false;
+		let best_match = null;
+		let best_score = -1;
 		const that = this;
+
 		$(".item-anchor").each(function () {
-			let href = decodeURIComponent($(this).attr("href")?.split("?")[0].split("#")[0]);
+			const score = that.get_sidebar_item_match_score($(this).attr("href"));
 
-			const path = decodeURIComponent(window.location.pathname);
-
-			// ensure no trailing slash mismatch
-			const clean_href = href.replace(/\/$/, "");
-			const clean_path = path.replace(/\/$/, "");
-
-			const isActive = clean_path === clean_href || clean_path.startsWith(clean_href + "/");
-
-			if (href && isActive) {
-				match = true;
-				if (that.active_item) that.active_item.removeClass("active-sidebar");
-				that.active_item = $(this).parent();
+			if (score > best_score) {
+				best_score = score;
+				best_match = $(this).parent();
 			}
 		});
-		return match;
+
+		if (this.active_item) {
+			this.active_item.removeClass("active-sidebar");
+		}
+
+		this.active_item = best_match;
+		return Boolean(best_match);
 	}
 
 	set_sidebar_state() {

@@ -1609,7 +1609,11 @@ Object.assign(frappe.utils, {
 			route +=
 				"?" +
 				$.map(item.route_options, function (value, key) {
-					return encodeURIComponent(key) + "=" + encodeURIComponent(value);
+					return (
+						encodeURIComponent(key) +
+						"=" +
+						encodeURIComponent(frappe.utils.get_route_option_value(value))
+					);
 				}).join("&");
 		}
 
@@ -1916,6 +1920,21 @@ Object.assign(frappe.utils, {
 			filter = JSON.stringify(filter);
 		}
 		return filter;
+	},
+
+	get_route_option_value(value) {
+		if (Array.isArray(value)) {
+			if (value.length === 2 && !Array.isArray(value[0]) && value[0] === "=") {
+				return value[1];
+			}
+			return JSON.stringify(value);
+		}
+
+		if (value && typeof value === "object") {
+			return JSON.stringify(value);
+		}
+
+		return value;
 	},
 
 	process_filter_expression(filter) {
