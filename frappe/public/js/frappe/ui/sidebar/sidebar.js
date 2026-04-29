@@ -769,9 +769,9 @@ frappe.ui.Sidebar = class Sidebar {
 		if (this.sidebar_title && candidates.includes(this.sidebar_title)) {
 			// 1. current sidebar already links to this entity -> keep it
 			sidebar_name = this.sidebar_title;
-		} else if (remembered[entity]?.length) {
+		} else if (this.get_saved_sidebar(entity, remembered)) {
 			// 2. previously remembered choice for this entity
-			sidebar_name = remembered[entity][0];
+			sidebar_name = this.get_saved_sidebar(entity, remembered);
 		} else {
 			// 3. narrow candidates to the active app
 			if (module) {
@@ -831,22 +831,28 @@ frappe.ui.Sidebar = class Sidebar {
 		});
 		return sidebars;
 	}
+	get_saved_sidebar(entity_name, sidebar_item_map) {
+		const saved_sidebar = sidebar_item_map?.[entity_name];
+		if (Array.isArray(saved_sidebar)) {
+			return saved_sidebar.at(-1);
+		}
+		return saved_sidebar;
+	}
 	setup_reload() {
 		const me = this;
-		this.item_sidebar_map = {};
+		this.item_sidebar_map = JSON.parse(localStorage.getItem("sidebar_item_map")) || {};
 		$(window).on("beforeunload", function () {
 			me.store_last_show_sidebar_for_item();
 		});
 	}
 	store_last_show_sidebar_for_item() {
-		const me = this;
 		if (frappe.app.sidebar.active_item) {
-			let active_item = frappe.app.sidebar.active_item.parent().data("id");
-			if (!me.item_sidebar_map[active_item]) {
-				me.item_sidebar_map[active_item] = [];
-			}
-			me.item_sidebar_map[active_item].push(me.sidebar_title);
-			localStorage.setItem("sidebar_item_map", JSON.stringify(me.item_sidebar_map));
+			const active_item = frappe.app.sidebar.active_item.parent();
+			const active_item_key = active_item.data("sidebarKey") || active_item.data("id");
+			if (!active_item_key) return;
+
+			this.item_sidebar_map[active_item_key] = this.sidebar_title;
+			localStorage.setItem("sidebar_item_map", JSON.stringify(this.item_sidebar_map));
 		}
 	}
 };

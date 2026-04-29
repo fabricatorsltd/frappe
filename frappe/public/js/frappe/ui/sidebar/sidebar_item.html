@@ -2,6 +2,7 @@
     class="sidebar-item-container {%= item.is_editable ? 'is-draggable' : '' %} {% if (item.type == 'Section Break') { %}section-item{% } %}"
     item-name="{{ item.label }}"
     data-id="{{ item.label }}"
+    data-sidebar-key="{{ item.link_to || item.route || item.label }}"
     title="{{ item.label }}"
     data-toggle="tooltip"
     data-placement="right"
