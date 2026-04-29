@@ -349,18 +349,24 @@ frappe.ui.SidebarHeader = class SidebarHeader {
 	}
 
 	add_app_item(item) {
+		if (item?.is_divider) {
+			$(`<div class="dropdown-divider documentation-links"></div>`).appendTo(
+				this.dropdown_menu
+			);
+			return;
+		}
+
+		const icon_markup = item.icon
+			? frappe.utils.icon(item.icon)
+			: item.icon_url
+			? `<img class="logo" src="${item.icon_url}">`
+			: item.icon_html || "";
+
 		$(`<div class="dropdown-menu-item" data-name="${item.name}"
 			data-app-route="${item.route}">
 			<a ${item.href ? `href="${item.href}"` : ""}>
-				<div class="sidebar-item-icon">
-					${
-						item.icon
-							? frappe.utils.icon(item.icon)
-							: `<img
-							class="logo"
-							src="${item.icon_url}"
-						>`
-					}
+				<div class="sidebar-item-icon" ${icon_markup ? "" : "hidden"}>
+					${icon_markup}
 				</div>
 				<span class="menu-item-title">${item.label}</span>
 				${
