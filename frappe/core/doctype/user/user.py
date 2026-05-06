@@ -212,8 +212,8 @@ class User(Document):
 		frappe.cache.delete_key("enabled_users")
 
 	def validate(self):
-		# clear new password
-		self.__new_password = self.new_password
+		if self.new_password:
+			self.__new_password = self.new_password
 		self.new_password = ""
 
 		if not frappe.in_test:
@@ -247,6 +247,9 @@ class User(Document):
 
 		if self.language == "Loading...":
 			self.language = None
+
+		if self.default_app and self.default_app not in frappe.get_installed_apps():
+			self.default_app = ""
 
 		if (self.name not in ["Administrator", "Guest"]) and (not self.get_social_login_userid("frappe")):
 			self.set_social_login_userid("frappe", frappe.generate_hash(length=39))
