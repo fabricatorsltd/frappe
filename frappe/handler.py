@@ -149,9 +149,11 @@ def upload_file():
 
 	files = frappe.request.files
 	is_private = frappe.form_dict.is_private
-	doctype = frappe.form_dict.doctype
-	docname = frappe.form_dict.docname
-	fieldname = frappe.form_dict.fieldname
+	# some clients send these wrapped in stray whitespace/newlines; a doctype like
+	# "\r\nUser" would otherwise fail lookup with an opaque "DocType not found" 500
+	doctype = (frappe.form_dict.doctype or "").strip() or None
+	docname = (frappe.form_dict.docname or "").strip() or None
+	fieldname = (frappe.form_dict.fieldname or "").strip() or None
 	file_url = frappe.form_dict.file_url
 	folder = frappe.form_dict.folder or "Home"
 	method = frappe.form_dict.method
