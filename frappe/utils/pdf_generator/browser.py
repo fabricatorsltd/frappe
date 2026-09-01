@@ -145,6 +145,10 @@ class Browser:
 		# open header and footer pages
 		self._open_header_footer_pages()
 
+		# Inject clone_and_update into <head> so it's available in the header /
+		# footer page contexts that the template renders via {% for tag in head %}.
+		self._inject_page_no_script(soup)
+
 		# get tags to pass to header template.
 		head = soup.find("head").contents
 		styles = soup.find_all("style")
@@ -183,6 +187,15 @@ class Browser:
 		for html_id in ["header-html", "footer-html"]:
 			for tag in soup.find_all(id=html_id):
 				tag.extract()
+
+	def _inject_page_no_script(self, soup):
+		"""Inject update_page_no.js into <head> so clone_and_update() is available
+		to the body page and to the header/footer pages (which pick up <head>
+		contents via the chrome_pdf_header_footer template)."""
+		path = frappe.get_app_path("frappe", "utils", "pdf_generator", "update_page_no.js")
+		tag = soup.new_tag("script")
+		tag.append(soup.new_string(frappe.read_file(path)))
+		soup.head.append(tag)
 
 	def try_async_header_footer_pdf(self):
 		if self.header_page and not self.is_header_dynamic:
@@ -306,9 +319,21 @@ class Browser:
 		footer_with_bottom_margin = 0
 		footer_height = 0
 
+		# When the caller already reserved the top margin inside the header markup
+		# (so a page number can sit flush to the page edge), the measured header
+		# height covers it and Chrome must not add it a second time.
+		header_owns_top_margin = bool(options.get("header-includes-top-margin"))
+
 		if self.header_page:
-			header_with_top_margin = self.header_height + margin_top
-			header_spacing = options.get("header-spacing", 0)
+			header_with_top_margin = self.header_height + (0 if header_owns_top_margin else margin_top)
+			# comes from print CSS as a string; unitless values are mm (wkhtmltopdf's
+			# --header-spacing unit) and must land in px like everything else here
+			header_spacing = options.get("header-spacing") or 0
+			if header_spacing:
+				parsed = parse_float_and_unit(header_spacing, default_unit="mm")
+				header_spacing = (
+					convert_uom(parsed["value"], parsed["unit"], "px", only_number=True) if parsed else 0
+				)
 			header_with_spacing_top_margin = header_with_top_margin + header_spacing
 			self.header_page.options["paperHeight"] = (
 				convert_uom(header_with_spacing_top_margin, "px", "in", only_number=True)
@@ -319,16 +344,21 @@ class Browser:
 		margin_top = convert_uom(margin_top, "px", "in", only_number=True)
 
 		if self.header_page:
-			self.header_page.options["marginTop"] = margin_top
+			self.header_page.options["marginTop"] = 0 if header_owns_top_margin else margin_top
 		else:
 			self.body_page.options["marginTop"] = margin_top
 
 		if self.footer_page:
 			footer_height = self.footer_height
+			# Mirror header: paperHeight must include the margin so Chrome has room
+			# to render content above the marginBottom gap. Without this, marginBottom
+			# clips content because the page isn't tall enough to hold both.
+			footer_with_bottom_margin = footer_height + margin_bottom
 			self.footer_page.options["paperHeight"] = (
-				convert_uom(footer_height, "px", "in", only_number=True) if footer_height else 0
+				convert_uom(footer_with_bottom_margin, "px", "in", only_number=True)
+				if footer_with_bottom_margin
+				else 0
 			)
-			footer_with_bottom_margin = self.footer_height + margin_bottom
 
 		margin_bottom = convert_uom(margin_bottom, "px", "in", only_number=True)
 
@@ -371,18 +401,32 @@ class Browser:
 		if not self.header_page and not self.footer_page:
 			return
 		total_pages = len(self.body_pdf.pages)
-		# function is added to html from update_page_no.js
-		if self.header_page:
-			if self.is_header_dynamic:
+
+		if self.header_page and self.is_header_dynamic:
+			if self.is_print_designer:
 				self.header_page.evaluate(
-					f"clone_and_update('{'#header-render-container' if self.is_print_designer else '.wrapper'}', {total_pages}, {1 if self.is_print_designer else 0}, 'Header', 1);",
+					f"clone_and_update('#header-render-container', {total_pages}, 1, 'Header', 1);",
+					await_promise=True,
+				)
+			else:
+				# Use the same JS clone_and_update approach as print_designer.
+				# The script was injected into <head> in prepare_header_footer so
+				# clone_and_update is already available in the header page context.
+				# This avoids page-break-after:always artifacts from Python cloning.
+				self.header_page.evaluate(
+					f"clone_and_update('.wrapper', {total_pages}, 0, 'Header', 1);",
 					await_promise=True,
 				)
 
-		if self.footer_page:
-			if self.is_footer_dynamic:
+		if self.footer_page and self.is_footer_dynamic:
+			if self.is_print_designer:
 				self.footer_page.evaluate(
-					f"clone_and_update('{'#footer-render-container' if self.is_print_designer else '.wrapper'}', {total_pages}, {1 if self.is_print_designer else 0}, 'Footer', 1);",
+					f"clone_and_update('#footer-render-container', {total_pages}, 1, 'Footer', 1);",
+					await_promise=True,
+				)
+			else:
+				self.footer_page.evaluate(
+					f"clone_and_update('.wrapper', {total_pages}, 0, 'Footer', 1);",
 					await_promise=True,
 				)
 
