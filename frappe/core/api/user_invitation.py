@@ -129,7 +129,13 @@ def _accept_invitation(key: str, in_test: bool) -> None:
 	hashed_key = frappe.utils.sha256_hash(key)
 	invitation_name = frappe.db.get_value("User Invitation", filters={"key": hashed_key})
 	if not invitation_name:
-		frappe.throw(title=_("Error"), msg=_("Invalid or expired key"))
+		# The invite key is single-use: accepting the invitation clears it. Re-opening
+		# the same link (e.g. before finishing password setup) would otherwise raise a
+		# raw 417. Send the visitor to the login page, where they can sign in or use
+		# "forgot password" to get a fresh link, instead of erroring.
+		frappe.local.response["type"] = "redirect"
+		frappe.local.response["location"] = "/login"
+		return
 	invitation = frappe.get_doc("User Invitation", invitation_name)
 
 	# accept invitation
