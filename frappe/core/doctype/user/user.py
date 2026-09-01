@@ -497,6 +497,14 @@ class User(Document):
 			url = "/update-password?key=" + key + "&password_expired=true"
 
 		link = get_url(url, allow_header_override=False)
+		# Reset / set-password links are customer-facing: route them to the portal
+		# host (site_config helpdesk_host) instead of the desk host that host_name
+		# points at, so customers land on help.* rather than the ERP domain.
+		portal_host = (frappe.conf.get("helpdesk_host") or "").strip()
+		if portal_host:
+			if not portal_host.startswith(("http://", "https://")):
+				portal_host = "https://" + portal_host
+			link = portal_host.rstrip("/") + url
 		if send_email:
 			self.password_reset_mail(link)
 
