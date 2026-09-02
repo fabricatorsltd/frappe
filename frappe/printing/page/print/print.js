@@ -597,6 +597,10 @@ frappe.ui.form.PrintView = class {
 				);
 				//Note: need to solve "Error: Cannot parse (FILE)<URL> as a PDF file" to enable qz pdf printing.
 			}
+		} else if (me.get_pdf_generator(me.get_print_format()?.pdf_generator) === "chrome") {
+			// the browser's own print dialog cannot reproduce a Chrome-generated
+			// format (server fonts, page headers and footers): open the PDF instead
+			me.render_pdf();
 		} else if (me.is_raw_printing()) {
 			// printer not mapped in localstorage and the current print format is raw printing
 			frappe.show_alert(
