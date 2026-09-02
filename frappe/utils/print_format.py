@@ -233,7 +233,7 @@ def download_pdf(
 	no_letterhead=0,
 	language=None,
 	letterhead=None,
-	pdf_generator: Literal["wkhtmltopdf", "chrome"] | None = None,
+	pdf_generator: str | None = None,
 ):
 	if pdf_generator is None:
 		pdf_generator = "wkhtmltopdf"
